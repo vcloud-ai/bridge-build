@@ -19,6 +19,8 @@ const {
   getCameraById
 } = __webpack_require__(1546);
 
+const ffmpegVersion = process.env.FFMPEG_VERSION || 4;
+
 class StreamsHandler {
   constructor() {
     _defineProperty(this, "addStream", deviceInfo => {
@@ -52,16 +54,17 @@ class Streamer {
     this.isStopped = false;
     this.restartTimeout = null;
     this.streamUrl = null;
+    this.publicStreamCheckerInterval = null;
   }
 
   init() {
+    this.isStopped = false;
     this.streamUrl = this.info.url;
 
     if (this.info.secondUrl && !this.info.isMainStream) {
       this.streamUrl = this.info.secondUrl;
     }
 
-    const ffmpegVersion = process.env.FFMPEG_VERSION || 4;
     console.log({
       ffmpegVersion: +ffmpegVersion,
       originalUrl: this.streamUrl,
@@ -78,9 +81,45 @@ class Streamer {
     this.streamProcess.stdout.on('data', data => {// console.log(`camera id ====> ${this.info.id}`);
       // console.log(data.toString("utf8"));
     });
+    this.publicStreamCheckerInterval = setInterval(this.checkPublicUrl.bind(this), 30 * 1000);
     this.streamProcess.on('close', () => {
       if (this.isStopped) return;
       this.restartTimeout = setTimeout(this.init.bind(this), 15000);
+    });
+  }
+
+  async checkPublicUrl() {
+    const timeoutOpt = +ffmpegVersion < 5 ? '-stimeout' : '-timeout';
+    const cmd = `-rtsp_transport tcp -v error ${timeoutOpt} 10000000 -print_format json -show_error ${this.info.proxyUrl}`.split(' ');
+    const probeUrl = spawn('ffprobe', cmd); // probeUrl.stderr.on('data', (err) => {
+    //   console.log(err.toString('utf8'));
+    //   if (err.toString('utf8').includes('unspecified size')) {
+    //     // ERROR
+    //     console.log('ERROR IN CHECKER');
+    //     if (this.isStopped) return;
+    //     this.reinit();
+    //   }
+    // });
+    // probeUrl.stdout.on('data', (data) => {
+    //   // console.log('checking url validity...');
+    //   const result = data.toString('utf8');
+    //   // console.log(result);
+    //   if (result.includes('error')) {
+    //     // ERROR
+    //     // console.log('ERROR IN CHECKER ::: camera ===> ', this.info.url);
+    //     if (this.isStopped) return;
+    //     this.reinit();
+    //   }
+    // });
+
+    probeUrl.on('close', (code, signal) => {
+      // console.log({ code, signal });
+      if (code) {
+        // ERROR
+        console.log('ERROR IN CHECKER ::: camera ===> ', this.info.proxyUrl);
+        if (this.isStopped) return;
+        this.reinit();
+      }
     });
   }
 
@@ -90,12 +129,18 @@ class Streamer {
     await this.kill();
   }
 
+  async reinit() {
+    await this.stop();
+    this.init();
+  }
+
   async update() {
     this.info = await getCameraById(this.info.id);
     await this.kill();
   }
 
   async kill() {
+    clearInterval(this.publicStreamCheckerInterval);
     if (!this.streamProcess?.pid) return;
     return new Promise(res => {
       terminate(this.streamProcess.pid, () => {

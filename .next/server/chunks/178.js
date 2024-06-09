@@ -14,13 +14,15 @@ const {
   spawn
 } = __webpack_require__(2081);
 
+const ffmpegVersion = process.env.FFMPEG_VERSION || 4;
 const checkUrlIsValid = url => new Promise((res, _) => {
-  console.log("url to check ===> ", url);
+  console.log('url to check ===> ', url);
+  const timeoutOpt = +ffmpegVersion < 5 ? '-stimeout' : '-timeout';
 
-  if (url.includes("undefined")) {
+  if (url.includes('undefined')) {
     // res({ message: "Something went wrong during url check" });
     res({
-      message: "Url is invalid"
+      message: 'Url is invalid'
     });
     return;
   } // FFMPEG 5
@@ -31,48 +33,48 @@ const checkUrlIsValid = url => new Promise((res, _) => {
   // FFMPEG 4
 
 
-  const cmd = `-rtsp_transport tcp -v debug -loglevel error -print_format json -show_error ${url}`.split(" ");
-  const probeUrl = spawn("ffprobe", cmd);
-  probeUrl.stderr.on("data", err => {
-    const result = err.toString("utf8"); //
+  const cmd = `-rtsp_transport tcp ${timeoutOpt} 10000000 -v debug -loglevel error -print_format json -show_error ${url}`.split(' ');
+  const probeUrl = spawn('ffprobe', cmd);
+  probeUrl.stderr.on('data', err => {
+    const result = err.toString('utf8'); //
 
     console.log(result); //
 
-    if (result.includes("Input/output error")) {
+    if (result.includes('Input/output error')) {
       res({
-        message: "Url is invalid"
+        message: 'Url is invalid'
       });
     }
   });
-  probeUrl.stdout.on("data", data => {
-    const result = data.toString("utf8"); //
+  probeUrl.stdout.on('data', data => {
+    const result = data.toString('utf8'); //
 
     console.log(result); //
 
-    if (result.includes("Operation not permitted")) {
+    if (result.includes('Operation not permitted')) {
       res({
-        message: "Operation not permitted"
+        message: 'Operation not permitted'
       });
     }
 
-    if (result.includes("Operation timed out")) {
+    if (result.includes('Operation timed out')) {
       res({
-        message: "Operation timed out"
+        message: 'Operation timed out'
       });
     }
   });
-  probeUrl.on("close", (code, signal) => {
+  probeUrl.on('close', (code, signal) => {
     console.log(code, signal);
 
     if (code) {
       res({
-        message: "Url is invalid"
+        message: 'Url is invalid'
       });
       return;
     }
 
     res({
-      message: "Successfully added"
+      message: 'Successfully added'
     });
   });
 });
