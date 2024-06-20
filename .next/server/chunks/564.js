@@ -82,7 +82,7 @@ class Streamer {
     this.streamProcess.stdout.on('data', data => {// console.log(`camera id ====> ${this.info.id}`);
       // console.log(data.toString("utf8"));
     });
-    this.publicStreamCheckerInterval = setInterval(this.checkPublicUrl.bind(this), 5 * 1000);
+    this.publicStreamCheckerInterval = setInterval(this.checkPublicUrl.bind(this), 30 * 1000);
     this.streamProcess.on('close', () => {
       if (this.isStopped) return;
       this.restartTimeout = setTimeout(this.init.bind(this), 15000);
