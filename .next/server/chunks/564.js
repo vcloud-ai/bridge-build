@@ -55,6 +55,7 @@ class Streamer {
     this.restartTimeout = null;
     this.streamUrl = null;
     this.publicStreamCheckerInterval = null;
+    this.isCheckingPublicStream = false;
   }
 
   init() {
@@ -81,7 +82,7 @@ class Streamer {
     this.streamProcess.stdout.on('data', data => {// console.log(`camera id ====> ${this.info.id}`);
       // console.log(data.toString("utf8"));
     });
-    this.publicStreamCheckerInterval = setInterval(this.checkPublicUrl.bind(this), 30 * 1000);
+    this.publicStreamCheckerInterval = setInterval(this.checkPublicUrl.bind(this), 5 * 1000);
     this.streamProcess.on('close', () => {
       if (this.isStopped) return;
       this.restartTimeout = setTimeout(this.init.bind(this), 15000);
@@ -89,6 +90,10 @@ class Streamer {
   }
 
   async checkPublicUrl() {
+    // console.log('should check ==> ', !this.isCheckingPublicStream);
+    if (this.isCheckingPublicStream) return; // console.log('checking');
+
+    this.isCheckingPublicStream = true;
     const timeoutOpt = +ffmpegVersion < 5 ? '-stimeout' : '-timeout';
     const cmd = `-rtsp_transport tcp -v error ${timeoutOpt} 10000000 -print_format json -show_error ${this.info.proxyUrl}`.split(' ');
     const probeUrl = spawn('ffprobe', cmd); // probeUrl.stderr.on('data', (err) => {
@@ -114,6 +119,8 @@ class Streamer {
 
     probeUrl.on('close', (code, signal) => {
       // console.log({ code, signal });
+      this.isCheckingPublicStream = false;
+
       if (code) {
         // ERROR
         console.log('ERROR IN CHECKER ::: camera ===> ', this.info.proxyUrl);
